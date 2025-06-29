@@ -1,0 +1,120 @@
+// Financial Analytics Dashboard: Starter React Frontend with TypeScript
+// Includes routing, JWT handling, Material-UI structure, and CSV download utility
+
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Container, Button, Typography, TextField, Box, CircularProgress } from '@mui/material';
+import axios from 'axios';
+
+const API_BASE = 'http://localhost:5000'; // replace with your backend URL
+
+// Util for setting token
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Login Component
+const Login = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE}/auth/login`, { email, password });
+      localStorage.setItem('token', res.data.token);
+      window.location.href = '/dashboard';
+    } catch (err) {
+      setError('Invalid credentials');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Container maxWidth="sm" sx={{ mt: 8 }}>
+      <Typography variant="h4">Login</Typography>
+      <Box mt={2}>
+        <TextField label="Email" fullWidth onChange={(e) => setEmail(e.target.value)} />
+      </Box>
+      <Box mt={2}>
+        <TextField label="Password" type="password" fullWidth onChange={(e) => setPassword(e.target.value)} />
+      </Box>
+      {error && (
+        <Typography color="error" mt={2}>{error}</Typography>
+      )}
+      <Box mt={2}>
+        <Button variant="contained" onClick={handleLogin} disabled={loading}>
+          {loading ? <CircularProgress size={24} /> : 'Login'}
+        </Button>
+      </Box>
+    </Container>
+  );
+};
+
+// Dashboard Placeholder
+const Dashboard = () => {
+  const [transactions, setTransactions] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const res = await axios.get(`${API_BASE}/transactions`);
+      setTransactions(res.data);
+    };
+    fetchData();
+  }, []);
+
+  const handleCSVDownload = async () => {
+    const res = await axios.post(`${API_BASE}/export`, { columns: ['date', 'amount', 'category'] }, { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'transactions.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <Container sx={{ mt: 8 }}>
+      <Typography variant="h4">Financial Dashboard</Typography>
+      <Button variant="outlined" onClick={handleCSVDownload} sx={{ mt: 2 }}>Download CSV</Button>
+      <Box mt={4}>
+        {transactions.map((txn, index) => (
+          <Box key={index} sx={{ p: 2, border: '1px solid #ccc', mb: 1, borderRadius: 1 }}>
+            <Typography>{txn.date} - {txn.amount} - {txn.category}</Typography>
+          </Box>
+        ))}
+      </Box>
+    </Container>
+  );
+};
+
+// Protected Route Wrapper
+const PrivateRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  return token ? children : <Navigate to="/login" />;
+};
+
+const App = () => {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    </Router>
+  );
+};
+
+export default App;
